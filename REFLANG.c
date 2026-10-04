@@ -3,9 +3,8 @@
 #include <time.h>
 #include <string.h>
 #define TEXT_LEN 2048
-#define FUNC_COUNTER 32
+#define FUNC_COUNTER 33
     int skip=0;
-    int eval=0;
     long int code;
 	long int now;
 	long int new_now;
@@ -26,6 +25,12 @@
 		
 	}new_if;
 	new_if nif;
+typedef struct{
+	int use;
+	char *save;
+	int now;
+}new_eval;
+new_eval eval;
 typedef struct{
 	char *buf[5];
 	char *command[TEXT_LEN];
@@ -317,6 +322,15 @@ void cmd_jump(char *name,char *non2, char *non3, char *non4,char *non5){
 	skip=1;
 	}
 }
+void cmd_eval(char *name,char *non2, char *non3, char *non4,char *non5){
+	eval.use=1;
+	eval.now=now;
+	eval.save=(char*)realloc(eval.save,RFL.text_len*sizeof(char));
+	strcpy(eval.save,RFL.command[now]);
+	RFL.command[now]=(char*)realloc(RFL.command[now],(strlen(name)+1)*sizeof(char));
+	strcpy(RFL.command[now],name);
+	now-=1;
+}
 void cmd_print(char *name,char *non2, char *non3, char *non4,char *non5){
 	FILE *f = fopen(name,"r");
 	if(f!=NULL){
@@ -527,6 +541,7 @@ void cmd_import(char *name,char *non2, char *non3, char *non4,char *non5){
 }
 int main(int argc, char *argv[]){
 	/*init*/
+	eval.use=0;
 	int hide=0;
 	RFL.import=0;
 	long int args;
@@ -808,6 +823,14 @@ RFL.command_counter=0;
 	func[31].var_work=0;
 	func[31].com=(char*)malloc(RFL.text_len*sizeof(char));
 	strcpy(func[31].com,"get random but custom sleep times\n");
+	/*end func */
+	func[32].func=cmd_eval;
+	func[32].temp=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[32].temp,"eval:%s");
+	func[32].args=1;
+	func[32].var_work=1;
+	func[32].com=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[32].com,"run you code\n");
 	/*end init func */
 	FILE *f;
 	RFL.input=(char*)malloc(RFL.text_len*sizeof(char));
@@ -896,6 +919,10 @@ RFL.command_counter=0;
 					continue;
 					
 					}
+				if(eval.use==1 && now == eval.now){
+					eval.use=0;
+					strcpy(RFL.command[now],eval.save);
+				}
 				if(RFL.import==1){
 					RFL.import=0;
 					goto parse;

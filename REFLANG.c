@@ -2,8 +2,16 @@
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
-#define TEXT_LEN 2048
-#define FUNC_COUNTER 33
+#define MICRO_TEXT_LEN 256
+#define POTATO_TEXT_LEN 512
+#define MINI_TEXT_LEN 1024
+#define BASE_TEXT_LEN 2048
+#define LARGE_TEXT_LEN 4096
+#define HUGE_TEXT_LEN 8192
+#define EXTREME_TEXT_LEN 16384
+#define XXXXL_TEXT_LEN 32768
+#define TEXT_LEN BASE_TEXT_LEN
+#define FUNC_COUNTER 38
     int skip=0;
     long int code;
 	long int now;
@@ -40,6 +48,10 @@ typedef struct{
 	char *input;
 	char *file_name;
 	long int import;
+	int pipe;
+    char *pipe_buf[5];
+    int ptr;
+    long int ptr_var;
 }REFLANG_console;
 REFLANG_console RFL;
 
@@ -60,7 +72,7 @@ new_var *var;
 void cmd_strout(char *text,char *non2, char *non3, char *non4,char* non5){
 	printf("%s",text);
 	fflush(stdout);
-};
+}
 
 void cmd_endl(char *counter,char *non2, char *non3, char *non4,char *non5){
 	long int index;
@@ -75,12 +87,42 @@ void cmd_sleep(char *counter,char *non2, char *non3, char *non4,char *non5){
 	}
 }
 void cmd_open(char *name,char *non2, char *non3, char *non4,char *non5){
+	if(RFL.file_name!=NULL){
 	free(RFL.file_name);
+	}
 	RFL.file_name=(char*)malloc((strlen(name)+1)*sizeof(char));
 	strcpy(RFL.file_name,name);
 }
 void cmd_exit(char *name,char *non2, char *non3, char *non4,char *non5){
 	exit(atol(name));
+}
+void cmd_parse(char *name,char *non2, char *non3, char *non4,char *non5){
+	long int var_each;
+	long int counter;
+		    for(var_each=0;var_each<RFL.var_counter;var_each+=1){
+		    	if(strcmp(var[var_each].name,name)==0){
+		    		sprintf(name,"%s",var[var_each].info);
+		    	}
+		    	if(strcmp(var[var_each].name,non2)==0){
+		    		sprintf(non2,"%s",var[var_each].info);
+		    	}
+		    }
+		    for(var_each=0;var_each<RFL.var_counter;var_each+=1){
+		    	if(strcmp(var[var_each].name,non3)==0){
+		   for(counter=0;counter<strlen(name);counter+=1){
+		   	if(name[counter]!=0){
+		   		if(non2[counter]=='_'){
+		   			sprintf(var[var_each].info,"%s%c",var[var_each].info,name[counter]);
+		   		}
+		   		else{
+	if(non2[counter]==name[counter]){
+		   				sprintf(var[var_each].info,"%s%c",var[var_each].info,name[counter]);
+		   			}
+		   		}
+		   	}
+		   }
+		   }
+		    }
 }
 void cmd_read(char *name,char *non2, char *non3, char *non4,char *non5){
 	if(strcmp(RFL.file_name,"")!=0){
@@ -118,6 +160,7 @@ void cmd_time(char *name,char *non2, char *non3, char *non4,char *non5){
 	for(var_each=0;var_each<RFL.var_counter;var_each+=1){
 		if(strcmp(var[var_each].name,name)==0){
 			sprintf(var[var_each].info,"%ld",time(NULL));
+			break;
 		}
 	}
 }
@@ -133,6 +176,11 @@ void cmd_struct(char *name,char *non2, char *non3, char *non4,char *non5){
 	strcpy(var[RFL.var_counter].info,"");
 	RFL.var_counter+=1;
 		}
+		var[RFL.var_counter].name=(char*)malloc(TEXT_LEN*sizeof(char));
+	var[RFL.var_counter].info=(char*)malloc(TEXT_LEN*sizeof(char));
+	sprintf(var[RFL.var_counter].name,"%s.size",non3);
+	sprintf(var[RFL.var_counter].info,"%ld",counter);
+	RFL.var_counter+=1;
 		free(save_name);
 	}
 	if(strcmp(name,"dict")==0){
@@ -165,6 +213,10 @@ void cmd_set(char *name,char *non2, char *non3, char *non4,char *non5){
 		}
 	}
 }
+void cmd_pipe(char *name,char *non2, char *non3, char *non4,char *non5){
+	sprintf(RFL.pipe_buf[atol(name)],"%s",non2);
+	RFL.pipe=1;
+}
 void cmd_rand(char *name,char *non2, char *non3, char *non4,char *non5){
 	long int var_each;
 	for(var_each=0;var_each<RFL.var_counter;var_each+=1){
@@ -178,6 +230,7 @@ void cmd_rand(char *name,char *non2, char *non3, char *non4,char *non5){
 	for(var_each=0;var_each<RFL.var_counter;var_each+=1){
 		if(strcmp(var[var_each].name,name)==0){
 			sprintf(var[var_each].info,"%ld",(rand() % ((atol(non3)+1)-atol(non2)))+atol(non2));
+			break;
 		}
 	}
 }
@@ -194,13 +247,41 @@ void cmd_rng(char *name,char *non2, char *non3, char *non4,char *non5){
 	for(var_each=0;var_each<RFL.var_counter;var_each+=1){
 		if(strcmp(var[var_each].name,name)==0){
 			sprintf(var[var_each].info,"%ld",((time(NULL)/atol(non4)) % ((atol(non3)+1)-atol(non2)))+atol(non2));
+			break;
 		}
 	}
 }
 void cmd_cmd(char *name,char *non2, char *non3, char *non4,char *non5){
 	system(name);
 }
-
+void cmd_split(char *name,char *non2, char *non3, char *non4,char *non5){
+	char *token;
+	long int counter=0;
+	char *save_name=(char*)malloc(RFL.text_len*sizeof(char));
+	sprintf(save_name,"%s[%ld]",non2,counter);
+	counter+=1;
+	token=strtok(name,non3);
+	var[RFL.var_counter].name=(char*)malloc(RFL.text_len*sizeof(char));
+	var[RFL.var_counter].info=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(var[RFL.var_counter].name,save_name);
+	strcpy(var[RFL.var_counter].info,token);
+	RFL.var_counter+=1;
+	while((token=strtok(NULL,non3))){
+		sprintf(save_name,"%s[%ld]",non2,counter);
+	counter+=1;
+	var[RFL.var_counter].name=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(var[RFL.var_counter].name,save_name);
+	var[RFL.var_counter].info=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(var[RFL.var_counter].info,token);
+	RFL.var_counter+=1;
+	}
+	var[RFL.var_counter].name=(char*)malloc(TEXT_LEN*sizeof(char));
+	var[RFL.var_counter].info=(char*)malloc(TEXT_LEN*sizeof(char));
+	sprintf(var[RFL.var_counter].name,"%s.size",non2);
+	sprintf(var[RFL.var_counter].info,"%ld",counter);
+	RFL.var_counter+=1;
+	free(save_name);
+}
 void cmd_append(char *name,char *non2, char *non3, char *non4,char *non5){
 	if(strcmp(RFL.file_name,"")!=0){
 		FILE *f=fopen(RFL.file_name,"a");
@@ -222,10 +303,16 @@ void cmd_debug(char *name,char *ascii, char *info, char *non4,char *non5){
 	else if(strcmp(name,"memory")==0){
 		printf("%ld\n",RFL.text_len);
 	}
+	else if(strcmp(name,"reset_ptr")==0){
+		RFL.ptr=0;
+		RFL.ptr_var=0;
+	}
 }
 void cmd_var(char *name,char *ascii, char *info, char *non4,char *non5){
-	long int found=0;
+	int found=0;
+	long int save;
 	long int var_each;
+	long int  new_var_each;
 	if(strcmp(info,"NONE")==0){
 		strcpy(info,"");
 	}
@@ -288,7 +375,7 @@ void cmd_var(char *name,char *ascii, char *info, char *non4,char *non5){
 				}
 				else if(strcmp(ascii,"b-")==0){
 					long int counter;
-					for(counter=0;counter<strlen(var[var_each].info);counter+=1){
+					for(counter=0;counter<(long int)strlen(var[var_each].info);counter+=1){
 						if(counter>atol(info)){
 							var[var_each].info[counter]=0;
 						}
@@ -302,6 +389,28 @@ void cmd_var(char *name,char *ascii, char *info, char *non4,char *non5){
 					strcpy(var[var_each].name,name);
 					strcpy(var[var_each].info,info);
 				}
+				else if(strcmp(ascii,"rm")==0){
+					free(var[var_each].info);
+					var[var_each].info=(char*)malloc(1*sizeof(char));
+					strcpy(var[var_each].info,"");
+				}
+				else if(strcmp(ascii,"get")==0){
+					sprintf(var[var_each].info,"%c",var[var_each].info[atol(info)]);
+				}
+				else if(strcmp(ascii,"**")==0){
+					save=atol(var[var_each].info);
+					for(new_var_each=1;new_var_each<atol(info);new_var_each+=1){
+						sprintf(var[var_each].info,"%ld",( atol(var[var_each].info) * save));
+					}
+				}
+				else {
+					for(new_var_each=0;new_var_each<RFL.var_counter;new_var_each+=1){
+			if(strcmp(ascii,var[new_var_each].name)==0){
+				strcpy(ascii,var[new_var_each].info);
+			}
+					}
+					var[var_each].info[atoi(ascii)]=atoi(info);
+				}
 			}
 		}
 	}
@@ -313,6 +422,7 @@ void cmd_strin(char *name,char *non2, char *non3, char *non4,char *non5){
 			if(strcmp(name,var[var_each].name)==0){
 				fgets(var[var_each].info,RFL.text_len,stdin);
 				var[var_each].info[strcspn(var[var_each].info,"\n")]=0;
+				break;
 			}
 	}
 }
@@ -365,12 +475,7 @@ void cmd_guide(char *name,char *non2, char *non3, char *non4,char *non5){
 		}
 	
 }
-void cmd_var_out(char *name,char *info, char *non3, char *non4,char *non5){
-	long int var_each=0;
-	for(var_each=0;var_each<RFL.var_counter;var_each+=1){
-		
-	}
-}
+
 void cmd_len(char *name,char *info, char *non3, char *non4,char *non5){
 	long int var_each;
 	char *save;
@@ -413,7 +518,7 @@ void cmd_repeat(char *name,char *info, char *num, char *non4,char *non5){
 	loop.step=atol(num);
 	loop.num=atol(name)+loop.step;
 	loop.end_num=atol(info);
-	for(new_now=0;new_now<RFL.command_counter;new_now+=1){
+	for(new_now=now;new_now<RFL.command_counter;new_now+=1){
 		if(strcmp(RFL.command[new_now],"repeat.end")==0){
 			loop.end=new_now;
 			break;
@@ -473,15 +578,18 @@ void cmd_owner(char *name,char *info, char *non3, char *non4,char *non5){
 	for(var_each=0;var_each<RFL.var_counter;var_each+=1){
 		if(strcmp(var[var_each].name,name)==0){
 			sprintf(var[var_each].name,"%s.%s",info,name);
+			break;
 		}
 	}
 }
 void cmd_make(char *name,char *info, char *non3, char *non4,char *non5){
 	/* name - c compiler , info - REFLANG origenal file , non3 - new file , non4-name of import file, non5-name of program */
+	FILE *f;
+	FILE *f2;
 	char *save_buf=(char*)malloc(RFL.text_len*sizeof(char));
 	sprintf(name,"%s %s -o %s",name,non3,non5);
-	FILE *f=fopen(info,"r");
-	FILE *f2=fopen(non3,"w+");
+	f=fopen(info,"r");
+	f2=fopen(non3,"w+");
 	fprintf(f2,"");
 	fclose(f2);
 	f2=fopen(non3,"a");
@@ -489,7 +597,7 @@ void cmd_make(char *name,char *info, char *non3, char *non4,char *non5){
 		if(strstr(save_buf,"/* mark for make */")!=NULL && strstr(save_buf,"strstr")==NULL){
 			fprintf(f2,"strcpy(RFL.input,\"console.import:%s\");if( hide == 0 ){hide=1;}",non4);
 		}else{
-			if(strstr(save_buf,"REFLANG by rost999dev")!=NULL){
+			if(strstr(save_buf,"REFLANG by rost999dev")!=NULL && strstr(save_buf,"strstr")==NULL){
 				;
 			}else{
 			fprintf(f2,"%s",save_buf);
@@ -507,6 +615,7 @@ void cmd_get(char *name,char *info, char *non3, char *non4,char *non5){
 	for(var_each=0;var_each<RFL.var_counter;var_each+=1){
 		if(strcmp(info,var[var_each].name)==0){
 			sprintf(info,"%s",var[var_each].info);
+			break;
 		}
 	}
 	sprintf(name,"%s[%s]",name,info);
@@ -525,8 +634,9 @@ void cmd_get(char *name,char *info, char *non3, char *non4,char *non5){
 }
 
 void cmd_import(char *name,char *non2, char *non3, char *non4,char *non5){
+		FILE *f;
 		strcpy(RFL.input,"");
-		FILE *f=fopen(name,"r");
+		f=fopen(name,"r");
 			if(f!=NULL){
 				while(fgets(RFL.buf[2],RFL.text_len,f)){
 					RFL.buf[2][strcspn(RFL.buf[2],"\n")]=0;
@@ -539,32 +649,65 @@ void cmd_import(char *name,char *non2, char *non3, char *non4,char *non5){
 			RFL.import=1;
 			RFL.command_counter=0;
 }
+void cmd_input(char *name,char *non2, char *non3, char *non4,char *non5){
+    long int var_each;
+    for(var_each=0;var_each<RFL.var_counter;var_each+=1){
+		if(strcmp(var[var_each].name,name)==0){
+		    fgets(var[var_each].info,RFL.text_len,stdin);
+		    break;
+		}
+    }
+}
+void cmd_ptr(char *name,char *non2, char *non3, char *non4,char *non5){
+	 long int var_each;
+    for(var_each=0;var_each<RFL.var_counter;var_each+=1){
+		if(strcmp(var[var_each].name,name)==0){
+			RFL.ptr=1;
+			RFL.ptr_var=var_each;
+			break;
+		}
+    }
+}
 int main(int argc, char *argv[]){
+FILE *f;
+int hide;
+long int args;
+long int var_each;
 	/*init*/
+	RFL.ptr=0;
+	RFL.ptr_var=0;
+	hide=0;
+	args=0;
+	var_each=0;
 	eval.use=0;
-	int hide=0;
 	RFL.import=0;
-	long int args;
 	loop.num=0;
 	loop.end_num=0;
-	long int var_each;
 	RFL.text_len=TEXT_LEN;
 RFL.var_counter=0;
 srand(time(NULL));
 RFL.command_counter=0;
     var=(new_var*)malloc(RFL.text_len*sizeof(new_var));
+	eval.save=(char*)malloc(1*sizeof(char));
+	strcpy(eval.save,"");
+	RFL.file_name = malloc(1);
+strcpy(RFL.file_name, "");
 	
-	
-	RFL.buf[0]=(char*)malloc((4*RFL.text_len)*sizeof(char));
-	RFL.buf[1]=(char*)malloc((4*RFL.text_len)*sizeof(char));
-	RFL.buf[2]=(char*)malloc((4*RFL.text_len)*sizeof(char));
-	RFL.buf[3]=(char*)malloc((4*RFL.text_len)*sizeof(char));
-	RFL.buf[4]=(char*)malloc((4*RFL.text_len)*sizeof(char));
+	RFL.buf[0]=(char*)malloc((RFL.text_len)*sizeof(char));
+	RFL.buf[1]=(char*)malloc((RFL.text_len)*sizeof(char));
+	RFL.buf[2]=(char*)malloc((RFL.text_len)*sizeof(char));
+	RFL.buf[3]=(char*)malloc((RFL.text_len)*sizeof(char));
+	RFL.buf[4]=(char*)malloc((RFL.text_len)*sizeof(char));
 	strcpy(RFL.buf[0],"");
 	strcpy(RFL.buf[1],"");
 	strcpy(RFL.buf[2],"");
 	strcpy(RFL.buf[3],"");
 	strcpy(RFL.buf[4],"");
+	for(var_each=0;var_each<5;var_each+=1){
+		RFL.pipe_buf[var_each]=(char*)malloc((RFL.text_len)*sizeof(char));
+		strcpy(RFL.pipe_buf[var_each],"");
+	}
+	var_each=0;
 	/*init func*/
 	func=(new_func *)malloc(FUNC_COUNTER*sizeof(new_func));
 	/* init func part 2 */
@@ -698,7 +841,7 @@ RFL.command_counter=0;
 	/*end func */
 	func[16].func=cmd_time;
 	func[16].temp=(char*)malloc(RFL.text_len*sizeof(char));
-	strcpy(func[16].temp,"console.time.%s");
+	strcpy(func[16].temp,"console.time -> %s");
 	func[16].args=1;
 	func[16].var_work=0;
 	func[16].com=(char*)malloc(RFL.text_len*sizeof(char));
@@ -831,8 +974,48 @@ RFL.command_counter=0;
 	func[32].var_work=1;
 	func[32].com=(char*)malloc(RFL.text_len*sizeof(char));
 	strcpy(func[32].com,"run you code\n");
+	/*end func */
+	func[33].func=cmd_input;
+	func[33].temp=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[33].temp,"console.input:%s");
+	func[33].args=1;
+	func[33].var_work=0;
+	func[33].com=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[33].com,"raw input \n");
+	/*end func */
+	func[34].func=cmd_pipe;
+	func[34].temp=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[34].temp,"console.pipe:%s %s");
+	func[34].args=2;
+	func[34].var_work=1;
+	func[34].com=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[34].com,"set args of new func to var \n");
+	/*end func */
+	func[35].func=cmd_split;
+	func[35].temp=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[35].temp,"split.%s %s -> %s");
+	func[35].args=3;
+	func[35].var_work=1;
+	func[35].com=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[35].com,"prse text \n");
+	/*end func */
+	func[36].func=cmd_parse;
+	func[36].temp=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[36].temp,"str.parse:%s %s -> %s");
+	func[36].args=3;
+	func[36].var_work=0;
+	func[36].com=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[36].com,"parse text and save it in the var\n");
+	/*end func */
+	func[37].func=cmd_ptr;
+	func[37].temp=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[37].temp,"ptr.set:%s");
+	func[37].args=1;
+	func[37].var_work=0;
+	func[37].com=(char*)malloc(RFL.text_len*sizeof(char));
+	strcpy(func[37].com,"create ptr to one var , write *$ to use ptr, use debug.reset_ptr to forget that\n");
 	/*end init func */
-	FILE *f;
+	
 	RFL.input=(char*)malloc(RFL.text_len*sizeof(char));
 	if(argc<2){
 	printf("REFLANG by rost999dev\n");
@@ -843,6 +1026,7 @@ RFL.command_counter=0;
 	/* mark for make */
 	if(hide==0 || hide==-1){
 	printf("REFLANG>>");
+	fflush(stdout);
 	fgets(RFL.input,RFL.text_len,stdin);
 	RFL.input[strcspn(RFL.input,"\n")]=0;
 	if(strcspn(RFL.input,"\r")!=0){
@@ -871,7 +1055,7 @@ RFL.command_counter=0;
 		parse:
 		RFL.command[RFL.command_counter]=strtok(RFL.input,";");
 		RFL.command_counter+=1;
-		while(RFL.command[RFL.command_counter]=strtok(NULL,";")){
+		while((RFL.command[RFL.command_counter]=strtok(NULL,";"))){
 			RFL.command_counter+=1;
 		}
 		for( now=0;now<RFL.command_counter;now+=1){
@@ -884,6 +1068,23 @@ RFL.command_counter=0;
 			for( now_command=0;now_command<FUNC_COUNTER;now_command+=1){
 				
 				if(sscanf(RFL.command[now],func[now_command].temp,RFL.buf[0],RFL.buf[1],RFL.buf[2],RFL.buf[3],RFL.buf[4])==func[now_command].args){
+				    if(RFL.ptr!=0){
+						if(strcmp(RFL.buf[0],"*$")==0){
+						sprintf(RFL.buf[0],"%s",var[RFL.ptr_var].info);
+						}
+						if(strcmp(RFL.buf[1],"*$")==0){
+						sprintf(RFL.buf[1],"%s",var[RFL.ptr_var].info);
+						}
+						if(strcmp(RFL.buf[2],"*$")==0){
+						sprintf(RFL.buf[2],"%s",var[RFL.ptr_var].info);
+						}
+						if(strcmp(RFL.buf[3],"*$")==0){
+						sprintf(RFL.buf[3],"%s",var[RFL.ptr_var].info);
+						}
+						if(strcmp(RFL.buf[4],"*$")==0){
+						sprintf(RFL.buf[4],"%s",var[RFL.ptr_var].info);
+						}
+					}
 					if(func[now_command].var_work==1){
 					
 					for(var_each=0;var_each<RFL.var_counter;var_each+=1){
@@ -908,6 +1109,29 @@ RFL.command_counter=0;
 			
 		}
 					}
+					}
+					if(RFL.pipe!=0 && now_command!=34){
+						if(strcmp(RFL.pipe_buf[0],"")!=0){
+						strcpy(RFL.buf[0],RFL.pipe_buf[0]);
+						strcpy(RFL.pipe_buf[0],"");
+						}
+						if(strcmp(RFL.pipe_buf[1],"")!=0){
+						strcpy(RFL.buf[1],RFL.pipe_buf[1]);
+						strcpy(RFL.pipe_buf[1],"");
+						}
+						if(strcmp(RFL.pipe_buf[2],"")!=0){
+						strcpy(RFL.buf[2],RFL.pipe_buf[2]);
+						strcpy(RFL.pipe_buf[2],"");
+						}
+						if(strcmp(RFL.pipe_buf[3],"")!=0){
+						strcpy(RFL.buf[3],RFL.pipe_buf[3]);
+						strcpy(RFL.pipe_buf[3],"");
+						}
+						if(strcmp(RFL.pipe_buf[4],"")!=0){
+						strcpy(RFL.buf[4],RFL.pipe_buf[4]);
+						strcpy(RFL.pipe_buf[4],"");
+						}
+						RFL.pipe=0;
 					}
 					
 					

@@ -473,8 +473,7 @@ void cmd_eval(char *name,char *non2, char *non3, char *non4,char *non5){
 	eval.now=now;
 	eval.save=(char*)realloc(eval.save,RFL.text_len*sizeof(char));
 	strcpy(eval.save,RFL.command[now]);
-	RFL.command[now]=(char*)realloc(RFL.command[now],(strlen(name)+1)*sizeof(char));
-	strcpy(RFL.command[now],name);
+	RFL.command[now]=name;
 	now-=1;
 }
 void cmd_print(char *name,char *non2, char *non3, char *non4,char *non5){
@@ -1233,7 +1232,7 @@ strcpy(RFL.file_name, "");
 					}
 				if(eval.use==1 && now == eval.now){
 					eval.use=0;
-					strcpy(RFL.command[now],eval.save);
+					RFL.command[now]=eval.save;
 				}
 				if(RFL.import==1){
 					RFL.import=0;
